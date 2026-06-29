@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LLM Robustness Tester</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #0a0a0f;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 2rem 3rem;
+      border-bottom: 1px solid #1e1e2e;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .logo { font-size: 1.5rem; font-weight: 700; color: #a78bfa; }
+    .tagline { font-size: 0.85rem; color: #64748b; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 2.5rem 2rem; }
+
+    .card {
+      background: #111118;
+      border: 1px solid #1e1e2e;
+      border-radius: 12px;
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+    }
+
+    h2 { font-size: 1rem; font-weight: 600; color: #94a3b8; margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+
+    textarea {
+      width: 100%;
+      background: #0d0d16;
+      border: 1px solid #2d2d3a;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 0.95rem;
+      padding: 0.85rem 1rem;
+      resize: vertical;
+      min-height: 90px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: #7c3aed; }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-end;
+      margin-top: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 0.4rem; }
+    label { font-size: 0.8rem; color: #64748b; font-weight: 500; }
+
+    select, input[type=range] {
+      background: #0d0d16;
+      border: 1px solid #2d2d3a;
+      border-radius: 6px;
+      color: #e2e8f0;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    select:focus { border-color: #7c3aed; }
+
+    .range-row { display: flex; align-items: center; gap: 0.6rem; }
+    input[type=range] { padding: 0; width: 120px; accent-color: #7c3aed; }
+    .range-val { font-size: 0.9rem; color: #a78bfa; font-weight: 600; min-width: 1.2rem; }
+
+    button#run-btn {
+      margin-left: auto;
+      background: #7c3aed;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.65rem 1.6rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    button#run-btn:hover { background: #6d28d9; }
+    button#run-btn:active { transform: scale(0.98); }
+    button#run-btn:disabled { background: #3b2070; cursor: not-allowed; }
+
+    #results { display: none; }
+
+    .score-banner {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      padding: 1.25rem 1.75rem;
+      background: #111118;
+      border: 1px solid #1e1e2e;
+      border-radius: 12px;
+      margin-bottom: 1.5rem;
+    }
+
+    .score-circle {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.4rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .score-info h3 { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.3rem; }
+    .score-info p { font-size: 0.85rem; color: #64748b; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+
+    .pair-card {
+      background: #111118;
+      border: 1px solid #1e1e2e;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .pair-header {
+      padding: 0.6rem 1rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .pair-original .pair-header { background: #1a103a; color: #a78bfa; }
+    .pair-paraphrase .pair-header { background: #0f1f1f; color: #34d399; }
+
+    .pair-prompt {
+      padding: 0.85rem 1rem;
+      font-size: 0.88rem;
+      color: #94a3b8;
+      border-bottom: 1px solid #1e1e2e;
+      font-style: italic;
+    }
+
+    .pair-response {
+      padding: 0.85rem 1rem;
+      font-size: 0.88rem;
+      color: #e2e8f0;
+      line-height: 1.6;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .heatmap-wrap { overflow-x: auto; }
+
+    table.heatmap {
+      border-collapse: collapse;
+      font-size: 0.78rem;
+      width: 100%;
+    }
+
+    table.heatmap th, table.heatmap td {
+      border: 1px solid #1e1e2e;
+      padding: 0.45rem 0.6rem;
+      text-align: center;
+    }
+
+    table.heatmap th { color: #64748b; font-weight: 600; }
+
+    .spinner {
+      display: none;
+      width: 20px; height: 20px;
+      border: 3px solid #3b2070;
+      border-top-color: #a78bfa;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-left: 0.6rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status { font-size: 0.85rem; color: #64748b; margin-top: 0.5rem; min-height: 1.2em; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">⚡ LLM Robustness Tester</div>
+    <div class="tagline">How stable is a model's output when you rephrase the same question?</div>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="card">
+    <h2>Configure Test</h2>
+    <textarea id="prompt-input" placeholder="Enter a prompt to test, e.g. 'What causes inflation?'"></textarea>
+
+    <div class="controls">
+      <div class="field">
+        <label>Model</label>
+        <select id="model-select">
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fast)</option>
+          <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Paraphrases</label>
+        <div class="range-row">
+          <input type="range" id="n-range" min="2" max="8" value="4" />
+          <span class="range-val" id="n-val">4</span>
+        </div>
+      </div>
+
+      <button id="run-btn">
+        Run Test
+        <span class="spinner" id="spinner"></span>
+      </button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div id="results">
+    <div class="score-banner" id="score-banner">
+      <div class="score-circle" id="score-circle"></div>
+      <div class="score-info">
+        <h3 id="score-label"></h3>
+        <p id="score-desc"></p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Prompt Variants & Responses</h2>
+      <div class="grid" id="pairs-grid"></div>
+    </div>
+
+    <div class="card">
+      <h2>Response Similarity Heatmap</h2>
+      <div class="heatmap-wrap" id="heatmap-wrap"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+
+const nRange = document.getElementById('n-range');
+const nVal = document.getElementById('n-val');
+nRange.addEventListener('input', () => nVal.textContent = nRange.value);
+
+document.getElementById('run-btn').addEventListener('click', runTest);
+
+async function runTest() {
+  const prompt = document.getElementById('prompt-input').value.trim();
+  if (!prompt) return;
+
+  const btn = document.getElementById('run-btn');
+  const spinner = document.getElementById('spinner');
+  const status = document.getElementById('status');
+
+  btn.disabled = true;
+  spinner.style.display = 'inline-block';
+  status.textContent = 'Generating paraphrases...';
+  document.getElementById('results').style.display = 'none';
+
+  try {
+    const res = await fetch(`${API}/api/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        n_paraphrases: parseInt(nRange.value),
+        model: document.getElementById('model-select').value,
+      }),
+    });
+
+    status.textContent = 'Running prompts through model...';
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Unknown error');
+    }
+
+    const data = await res.json();
+    status.textContent = '';
+    renderResults(data);
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+    spinner.style.display = 'none';
+  }
+}
+
+function scoreColor(score) {
+  if (score >= 0.85) return { bg: '#14532d', text: '#4ade80', label: 'Robust', desc: 'The model gives highly consistent answers regardless of phrasing.' };
+  if (score >= 0.65) return { bg: '#1c1f00', text: '#facc15', label: 'Moderate Variance', desc: 'Some inconsistency detected. Wording noticeably affects the output.' };
+  return { bg: '#3b0000', text: '#f87171', label: 'Brittle', desc: 'High variance! The model\'s output changes significantly with rephrasing.' };
+}
+
+function renderResults(data) {
+  const pct = Math.round(data.robustness_score * 100);
+  const sc = scoreColor(data.robustness_score);
+
+  const circle = document.getElementById('score-circle');
+  circle.textContent = pct + '%';
+  circle.style.background = sc.bg;
+  circle.style.color = sc.text;
+  circle.style.border = `3px solid ${sc.text}`;
+
+  document.getElementById('score-label').textContent = sc.label;
+  document.getElementById('score-label').style.color = sc.text;
+  document.getElementById('score-desc').textContent = sc.desc;
+
+  // Pairs
+  const grid = document.getElementById('pairs-grid');
+  grid.innerHTML = '';
+  data.prompts.forEach((p, i) => {
+    const isOriginal = i === 0;
+    const div = document.createElement('div');
+    div.className = `pair-card ${isOriginal ? 'pair-original' : 'pair-paraphrase'}`;
+    div.innerHTML = `
+      <div class="pair-header">
+        ${isOriginal ? '🔵 Original' : `🟢 Paraphrase ${i}`}
+      </div>
+      <div class="pair-prompt">${escHtml(p)}</div>
+      <div class="pair-response">${escHtml(data.responses[i])}</div>
+    `;
+    grid.appendChild(div);
+  });
+
+  // Heatmap
+  const wrap = document.getElementById('heatmap-wrap');
+  const n = data.prompts.length;
+  const labels = data.prompts.map((_, i) => i === 0 ? 'Original' : `P${i}`);
+  let html = '<table class="heatmap"><thead><tr><th></th>';
+  labels.forEach(l => html += `<th>${l}</th>`);
+  html += '</tr></thead><tbody>';
+
+  data.similarity_matrix.forEach((row, i) => {
+    html += `<tr><th>${labels[i]}</th>`;
+    row.forEach((val, j) => {
+      const v = Math.round(val * 100);
+      const alpha = i === j ? 0.15 : Math.max(0.05, val * 0.7);
+      const color = val >= 0.85 ? `rgba(74,222,128,${alpha})` :
+                    val >= 0.65 ? `rgba(250,204,21,${alpha})` :
+                                  `rgba(248,113,113,${alpha})`;
+      html += `<td style="background:${color};color:${i===j?'#475569':'#e2e8f0'}">${i===j?'—':v+'%'}</td>`;
+    });
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
